@@ -12,10 +12,17 @@ import PDFModal from "../components/PDFModal";
 import "../styles/styles.css";
 
 export default function MedicineTracker() {
+  // const [medicines, setMedicines] = useState([]); 
+
   const [medicines, setMedicines] = useState(() => {
-    const stored = localStorage.getItem("medicines");
-    return stored ? JSON.parse(stored) : [];
-  });
+  const stored = localStorage.getItem("medicines");
+  return stored ? JSON.parse(stored) : [];
+});
+
+  useEffect(() => {
+  localStorage.setItem("medicines", JSON.stringify(medicines));
+}, [medicines]);
+
 
   const [showForm, setShowForm] = useState(false);
   const [selectedRows, setSelectedRows] = useState([]);
@@ -38,12 +45,12 @@ export default function MedicineTracker() {
     mobile: ""
   });
 
-  useEffect(() => {
-    const storedMeds = localStorage.getItem("medicines");
-    if (storedMeds) {
-      setMedicines(JSON.parse(storedMeds));
-    }
-  }, []);
+  // useEffect(() => {
+  //   const storedMeds = localStorage.getItem("medicines");
+  //   if (storedMeds) {
+  //     setMedicines(JSON.parse(storedMeds));
+  //   }
+  // }, []);
 
   useEffect(() => {
     localStorage.setItem("medicines", JSON.stringify(medicines));
@@ -88,14 +95,15 @@ export default function MedicineTracker() {
 
   const startEdit = () => {
     if (selectedRows.length === 1) {
-      const med = medicines[selectedRows[0]];
+      const med = safeMedicines[selectedRows[0]];
+      if (!med) return;
       setForm({
         name: med.name,
         morning: med.dosage[0] === "1",
         afternoon: med.dosage[2] === "1",
         night: med.dosage[4] === "1",
-        food: med.food || "After Food",
-        notes: med.notes || ""
+        food: med.food,
+        notes: med.notes
       });
       setEditIndex(selectedRows[0]);
       setShowForm(true);
@@ -116,15 +124,24 @@ export default function MedicineTracker() {
     setForm({ ...form, [field]: value });
   };
 
-  const filteredMedicines = medicines.filter(
-    (med) =>
-      med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (med.notes || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // ✅ Always clean medicines before using
+  const safeMedicines = medicines.map((m) => ({
+    name: m.name || "",
+    dosage: m.dosage || "0-0-0",
+    food: m.food || "After Food",
+    notes: m.notes || ""
+  }));
+
+  const filteredMedicines = safeMedicines.filter((med) => {
+    const name = med.name.toLowerCase();
+    const notes = med.notes.toLowerCase();
+    const term = searchTerm.toLowerCase();
+    return name.includes(term) || notes.includes(term);
+  });
 
   const handleDragEnd = (result) => {
     if (!result.destination) return;
-    const items = Array.from(medicines);
+    const items = Array.from(safeMedicines);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
     setMedicines(items);
@@ -151,7 +168,7 @@ export default function MedicineTracker() {
       autoTable(doc, {
         startY: n + 4 * x,
         head: [["Name", "Dosage", "Food", "Notes"]],
-        body: medicines.map((m) => [m.name, m.dosage, m.food, m.notes]),
+        body: safeMedicines.map((m) => [m.name, m.dosage, m.food, m.notes])
       });
 
       doc.save(`${(pdfInfo.patientName || "patient")}_medicines.pdf`);
@@ -169,7 +186,6 @@ export default function MedicineTracker() {
   };
 
   return (
-    <body>
     <div className="container">
       <h2 className="title">💊 Medicine Tracker</h2>
 
@@ -199,7 +215,7 @@ export default function MedicineTracker() {
 
       <DragDropContext onDragEnd={handleDragEnd}>
         <MedicineTable
-          medicines={medicines}
+          medicines={safeMedicines}
           filteredMedicines={filteredMedicines}
           selectedRows={selectedRows}
           toggleRowSelection={toggleRowSelection}
@@ -227,6 +243,5 @@ export default function MedicineTracker() {
         />
       )}
     </div>
-  </body>
   );
 }
